@@ -8,7 +8,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from datetime import datetime
 from collections import deque
-import settings
+import settings as settings
 import logging
 import sqlite3
 import requests
