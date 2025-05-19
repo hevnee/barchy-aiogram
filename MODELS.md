@@ -1,0 +1,17 @@
+# AI Models for bot
+
+## Models
+
+Prompt for responses: `Explain in 2-3 sentences: why is it that during a thunderstorm you see lightning first and then hear thunder?`
+
+| Model name | Requirements | Response | Action time |
+| - | - | - | - |
+| [tiiuae/Falcon3-10B-Instruct](https://huggingface.co/tiiuae/Falcon3-10B-Instruct) | ~7.2GB VRAM, 19GB on disk | Lightning is visible to us because it travels at the speed of light, which is extremely fast. Thunder, on the other hand, is sound and travels much slower through the air, so it takes longer to reach our ears after the lightning flash. | 5.47s |
+| [Hibernates/Hiber-Multi-10B-Instruct](https://huggingface.co/Hibernates/Hiber-Multi-10B-Instruct) | ~5.8GB VRAM, 20GB on disk | During a thunderstorm, we usually see lightning first and hear the thunder later due to the difference in the speeds of light and sound. Light travels much faster than sound - about 186,000 miles per second (295,000 km/s) versus around 767 mph (1,234 km/h) for sound in dry air at sea level. When lightning strikes, the bright flash from the electrical discharge occurs instantly, reaching our eyes before the accompanying sound arrives. The sound of thunder takes time to travel from the location of the lightning strike to us, which is why there's an observable delay between seeing the lightning and hearing the thunder. | 39.37s |
+| [Sao10K/Fimbulvetr-11B-v2](https://huggingface.co/Sao10K/Fimbulvetr-11B-v2) | ~5.8GB VRAM, 20GB on disk | During a thunderstorm, the reason we see lightning before hearing the accompanying thunder is due to the differences in speed at which light and sound travel. Light travels much faster than sound; its speed is approximately 299,792,458 meters per second (or about 186,282 miles per second), while sound generally travels at around 340 meters per second (or roughly 1115 feet per second). When lightning occurs, the electrical discharge generates both visible light and an accompanying shockwave. The light from the lightning reaches our eyes instantaneously, or at least perceived as such because of its high speed, giving us the first visual cue of a storm. The sound of thunder, on the other hand, takes time to reach observers depending on their distance from the source. As sound travels slower, we hear thunder only after we've already seen the lightning, allowing us to estimate the distance between us and the storm based on the delay between seeing the lightning and hearing the thunder. | 61.22s |
+| [sambanovasystems/SambaLingo-Russian-Chat](https://huggingface.co/sambanovasystems/SambaLingo-Russian-Chat) | ~4.5GB VRAM, 13GB on disk | During a thunderstorm, lightning travels faster than sound. Lightning strikes appear as flashes of light while the thunderclap, which we hear, follows afterward due to the time delay between lightning strike and our ears detecting the sound waves. | 8.97s |
+| [arcee-ai/Virtuoso-Lite](https://huggingface.co/arcee-ai/Virtuoso-Lite) | ~6.3GB VRAM, 19GB on disk | Lightning is visible because it travels at the speed of light, which is extremely fast, whereas sound from thunder travels much slower through the air. This difference in speed causes us to see the lightning almost instantly, but we hear the thunder a few seconds later. | 13.1s |
+
+*All tests were performed on 16GB RAM with RTX 4060 Laptop*
+
+
