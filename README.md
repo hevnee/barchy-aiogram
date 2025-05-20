@@ -13,6 +13,9 @@ barchy uses [LibreTranslate](https://libretranslate.com/) for translate.
 
 ## Requirements
 
+Python version: Python 3.10 - 3.12
+OS: Windows 10/11
+
 ## Usage
 
 1. Install all libraries from the requirements.txt.
