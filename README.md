@@ -4,11 +4,14 @@
 
 * [About](#about)
 * [Usage](#usage)
+* [Requirements](#requirements)
 
 ## About
 
 [barchy](https://t.me/barchy_bot) is a telegram bot with AI part, working on [aiogram](https://github.com/aiogram/aiogram/). <br/>
 barchy uses [LibreTranslate](https://libretranslate.com/) for translate.
+
+## Requirements
 
 ## Usage
 
