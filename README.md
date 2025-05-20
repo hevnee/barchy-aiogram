@@ -3,8 +3,8 @@
 ## Table of Contents
 
 * [About](#about)
-* [Usage](#usage)
 * [Requirements](#requirements)
+* [Usage](#usage)
 
 ## About
 
@@ -13,7 +13,7 @@ barchy uses [LibreTranslate](https://libretranslate.com/) for translate.
 
 ## Requirements
 
-Python version: Python 3.10 - 3.12
+Python version: Python 3.10 - 3.12 <br/>
 OS: Windows 10/11
 
 ## Usage
