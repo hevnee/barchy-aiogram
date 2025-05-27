@@ -1,7 +1,7 @@
 from configs.settings import *
 from services.generator import TextGenerator
+from services.translate import *
 
-logging.basicConfig(level=logging.INFO)
 memory_storage = {}
 text_generator = TextGenerator()
 
@@ -13,78 +13,320 @@ class RequestQueue:
         self.queue = asyncio.Queue()
         self.processing = False
         self.active_tasks = 0
-
 request_queue = RequestQueue()
 
-async def cleanup_memory():
-    current_time = datetime.now().timestamp()
-    to_delete = [k for k, v in memory_storage.items() if current_time - v["timestamp"] > MEMORY_DURATION]
-    for k in to_delete:
-        del memory_storage[k]
 
-# show_original button handler
-@dp.callback_query(lambda c: c.data == "show_original")
-async def show_original_option(callback_query: types.CallbackQuery):
+#previous, reset, next buttons handler for /history command
+@dp.callback_query(lambda c: c.data in ("prev_h", "reset_h", "next_h") and c.from_user.id == c.message.reply_to_message.from_user.id)
+async def Hkeyboard_navigate_options(callback_query: types.CallbackQuery):
     await callback_query.answer()
-    user_id = callback_query.from_user.id
-    lang = get_lang(user_id)
+    user = callback_query.from_user
+    lang = get_lang(user)
     
-    message_text = callback_query.message.text
-    cursor_logs.execute("SELECT answer_original FROM requests WHERE answer_translation = ?", (message_text,))
-    result = cursor_logs.fetchone()
+    current_page, response = get_currpage_resp(user)
+    if not response:
+        return await callback_query.message.edit_text(SELECTED_LANGUAGE[lang]["you_have_no_request"], reply_markup=UHkeyboard(SELECTED_LANGUAGE, lang))
 
-    if result is None:
-        await callback_query.message.reply("ERROR")
-        return
+    data = callback_query.data
+    if data == "prev_h":
+        if current_page > 0:
+            current_page -= 1
+        else:
+            if len(response) == 1:
+                return
+            current_page = len(response) - 1
 
-    if lang is None:
-        show_translation_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=select_language["ru"]["show_translation_lang"], callback_data="show_translation")]
-        ])
-    else:
-        show_translation_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=select_language[lang]["show_translation_lang"], callback_data="show_translation")]
-        ])
+    elif data == "reset_h":
+        if current_page == 0:
+            return
+        current_page = 0
+
+    elif data == "next_h":
+        if len(response) == 1:
+            return
+        if current_page < len(response) - 1:
+            current_page += 1
+        else:
+            current_page = 0
+
+    update_history_position(current_page, user)
+    text = texting(response, current_page, user)
     await callback_query.message.edit_text(
-        text=result[0],
-        reply_markup=show_translation_keyboard
+        text=text, 
+        parse_mode=ParseMode.HTML, 
+        reply_markup=Hkeyboard(
+            current_page+1, 
+            len(response), 
+            response[current_page][2],
+            SELECTED_LANGUAGE,
+            lang
+        )
     )
 
-# show_translation button handler
-@dp.callback_query(lambda c: c.data == "show_translation")
-async def show_translation_option(callback_query: types.CallbackQuery):
+
+#show_original, show_translation buttons handler for /history command 
+@dp.callback_query(lambda c: c.data in ("show_original_h", "show_translation_h") and c.from_user.id == c.message.reply_to_message.from_user.id)
+async def Hkeyboard_translate_options(callback_query: types.CallbackQuery):
     await callback_query.answer()
-    user_id = callback_query.from_user.id
-    lang = get_lang(user_id)
+    data = callback_query.data
+    user = callback_query.from_user
+    lang = get_lang(user)
+
+    if data == "show_original_h":
+        current_page, response = get_currpage_resp_original(user)
+        if not response:        
+            return await callback_query.message.edit_text(SELECTED_LANGUAGE[lang]["you_have_no_request"], reply_markup=UHkeyboard(SELECTED_LANGUAGE, lang))
+        text = texting(response, current_page, user)
+        keyboard = Hkeyboard_translation
+
+    elif data == "show_translation_h":
+        current_page, response = get_currpage_resp(user)
+        if not response:
+            return await callback_query.message.edit_text(SELECTED_LANGUAGE[lang]["you_have_no_request"], reply_markup=UHkeyboard(SELECTED_LANGUAGE, lang))
+        
+        text = texting(response, current_page, user)
+        keyboard = Hkeyboard
+
+    await callback_query.message.edit_text(
+            text=text, 
+            parse_mode=ParseMode.HTML, 
+            reply_markup=keyboard(
+                current_page+1, 
+                len(response), 
+                response[current_page][2],
+                SELECTED_LANGUAGE, 
+                lang
+            )
+        )
+
+
+#delete requests handler for /history command
+@dp.callback_query(lambda c: c.data in ("delete_this_request_h", "delete_all_h") and c.from_user.id == c.message.reply_to_message.from_user.id)
+async def delete_request_option(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    data = callback_query.data
+    user = callback_query.from_user
+    lang = get_lang(user)
+    current_page, response = get_currpage_resp(user)
+    if not response:
+        return await callback_query.message.edit_text(SELECTED_LANGUAGE[lang]["you_have_no_request"], reply_markup=UHkeyboard(SELECTED_LANGUAGE, lang))
     
-    message_text = callback_query.message.text
-    cursor_logs.execute("SELECT answer_translation FROM requests WHERE answer_original = ?", (message_text,))
-    result = cursor_logs.fetchone()
+    if data == "delete_all_h":
+        await callback_query.message.reply(SELECTED_LANGUAGE[lang]["r_u_s_del_all"], reply_markup=Ckeyboard("yes_all", SELECTED_LANGUAGE, lang))
+    else:
+        await callback_query.message.reply(SELECTED_LANGUAGE[lang]["r_u_s_del_this"], reply_markup=Ckeyboard("yes_this_request", SELECTED_LANGUAGE, lang))
+
+
+#confirmation delete requests handler for /history command
+@dp.callback_query(lambda c: c.data in ("yes_all", "no_c", "yes_this_request"))
+async def confirmation_del(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    data = callback_query.data
+    chat_id = callback_query.message.chat.id
+    user = callback_query.from_user
+    msg_id = callback_query.message.message_id
+
+    if data == "yes_all":
+        cursor.execute("DELETE FROM request_history WHERE user_id = ?", (user.id,))
+        database.commit()
+        update_history_position(0, user)
+        await bot.delete_message(chat_id, msg_id)
+
+    elif data == "yes_this_request":
+        current_page, response = get_currpage_resp(user)
+        if len(response) == 1:
+            cursor.execute("DELETE FROM request_history WHERE user_id = ? AND timestamp = ?", (user.id, response[current_page][3]))
+            database.commit()
+        elif len(response) > 1:
+            cursor.execute("DELETE FROM request_history WHERE user_id = ? AND timestamp = ?", (user.id, response[current_page][3]))
+            database.commit()
+            if current_page == 0:
+                current_page += 1
+            else:
+                current_page -= 1
+        update_history_position(current_page, user)
+        await bot.delete_message(chat_id, msg_id)
+
+    else:
+        await bot.delete_message(chat_id, msg_id)
+
+
+#update button handler for /history command
+@dp.callback_query(lambda c: c.data == "update_h" and c.from_user.id == c.message.reply_to_message.from_user.id)
+async def update_history_option(callback_query: CallbackQuery):
+    await callback_query.answer()
+    user = callback_query.from_user
+    lang = get_lang(user)
     
-    if result is None:
-        await callback_query.message.reply("ERROR")
+    current_page, response = get_currpage_resp(user)
+    if not response:
         return
 
-    if lang is None:
-        show_original_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=select_language["ru"]["show_original_lang"], callback_data="show_original")]
-        ])
-    else:
-        show_original_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=select_language[lang]["show_original_lang"], callback_data="show_original")]
-        ])
+    text = texting(response, current_page, user)
     await callback_query.message.edit_text(
-        text=result[0],
-        reply_markup=show_original_keyboard
+        text=text, 
+        parse_mode=ParseMode.HTML, 
+        reply_markup=Hkeyboard(
+            current_page+1, 
+            len(response), 
+            response[current_page][2],
+            SELECTED_LANGUAGE, lang
+        )
     )
 
-# ai
+
+#show original and show translation handlers for /chat command
+@dp.callback_query(lambda c: c.data in ("show_original", "show_translation") and c.from_user.id == c.message.reply_to_message.from_user.id)
+async def show_options(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    data = callback_query.data
+    user = callback_query.from_user
+    lang = get_lang(user)
+    message_text = callback_query.message.text
+
+    if data == "show_original":
+        result = cursor.execute("SELECT response_original FROM request_history WHERE response_translation = ? AND user_id = ?", (message_text, user.id)).fetchone()
+        if result is None:
+            return await callback_query.message.edit_text(SELECTED_LANGUAGE[lang]["request_has_been_deleted"])
+        keyboard = STkeyboard(SELECTED_LANGUAGE, lang)
+        await callback_query.message.edit_text(
+            text=result[0],
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard
+        )
+
+    else:
+        result = cursor.execute("SELECT response_translation FROM request_history WHERE response_original = ? AND user_id = ?", (message_text, user.id)).fetchone()
+        if result is None:
+            return await callback_query.message.edit_text(SELECTED_LANGUAGE[lang]["request_has_been_deleted"])
+
+        keyboard = SOkeyboard(SELECTED_LANGUAGE, lang)
+        await callback_query.message.edit_text(
+            text=result[0],
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard
+        )
+
+
+#language changer handler for /language command
+@dp.callback_query(lambda c: c.data in SUPPORTED_LANGUAGES and c.from_user.id == c.message.reply_to_message.from_user.id)
+async def change_language_handler(callback: types.CallbackQuery):
+    await callback.answer()
+    data = callback.data
+    user = callback.from_user
+
+    cursor.execute("UPDATE users SET lang = ? WHERE user_id = ?", (data, user.id))
+    database.commit()
+    await callback.message.reply(text=SELECTED_LANGUAGE[data]["change_language_succesfully"])
+
+    if user.id in user_command:
+        await user_command[user.id]()
+        del user_command[user.id]
+
+
+# /start command
+@dp.message(Command("start"))
+async def start_command(message: Message):
+    user = message.from_user
+    await user_save(user, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
+
+    lang = get_lang(user)
+    if lang is None:
+        user_command[user.id] = partial(start_command, message)
+        return await change_language(message)
+
+    await message.reply(SELECTED_LANGUAGE[lang]["welcome_text"], parse_mode=ParseMode.HTML)
+
+
+# /help command
+@dp.message(Command("help"))
+async def help_command(message: Message):
+    user = message.from_user
+    await user_save(user, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
+    
+    lang = get_lang(user)
+    if lang is None:
+        user_command[user.id] = partial(help_command, message)
+        return await change_language(message)
+
+    await message.reply(SELECTED_LANGUAGE[lang]["commands"], parse_mode=ParseMode.HTML)
+
+
+# /language command
+@dp.message(Command("language"))
+async def change_language(message: Message):
+    user = message.from_user
+    await user_save(user, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
+
+    lang = get_lang(user)
+    if lang is None:
+        await message.reply(SELECTED_LANGUAGE["none"], reply_markup=language_keyboard)
+    else:
+        await message.reply(SELECTED_LANGUAGE[lang]["change_language"], reply_markup=language_keyboard)
+
+
+# /chat command
+@dp.message(Command("chat"))
+async def chat_command(message: Message):
+    user = message.from_user
+    date = datetime.now().strftime("%d.%m.%Y %H:%M")
+    timestamp = datetime.now().timestamp()
+    await user_save(user, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
+
+    lang = get_lang(user)
+    if lang is None:
+        user_command[user.id] = partial(chat_command, message)
+        return await change_language(message)
+
+    chat_id = message.chat.id
+    await cleanup_memory()
+    if user.id not in memory_storage:
+        memory_storage[user.id] = {
+            "history": deque(maxlen=MAX_HISTORY_LENGTH),
+            "timestamp": datetime.now().timestamp()
+        }
+
+    memory_storage[user.id]["timestamp"] = datetime.now().timestamp()
+    request = message.text.split('/chat', 1)[1].strip()
+    if not request:
+        return await message.reply(SELECTED_LANGUAGE[lang]["just_chat"])
+
+    cursor.execute("INSERT OR IGNORE INTO request_history (user_id, username, request_original, date, timestamp) VALUES (?, ?, ?, ?, ?)", 
+        (user.id, message.from_user.username, request, date, timestamp))
+    database.commit()
+
+    if lang == "en":
+        processing_msg = await message.reply(SELECTED_LANGUAGE[lang]["request_processed"])
+    else:
+        try:
+            processing_msg = await message.reply(SELECTED_LANGUAGE[lang]["translating_request"])
+
+            request = translate_request(request, lang)
+        except:
+            return await bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=processing_msg.message_id,
+                text=SELECTED_LANGUAGE[lang]["translator_not_working"]
+            )
+
+    cursor.execute("UPDATE request_history SET request_translation = ? WHERE timestamp = ?", (request, timestamp))
+    database.commit()
+    await request_queue.queue.put((message, request, processing_msg, timestamp, lang))
+    position_in_queue = request_queue.queue.qsize()
+    await bot.edit_message_text(
+        chat_id=chat_id,
+        message_id=processing_msg.message_id,
+        text=f"{SELECTED_LANGUAGE[lang]['position_in_queue'] + str(position_in_queue)}."
+    )
+
+#AI
 async def process_queue():
     while True:
+        await asyncio.sleep(0.5)
         task = await request_queue.queue.get()
 
         try:
-            message, args, processing_msg, time, lang = task
+            message, request, processing_msg, timestamp, lang = task
             chat_id = message.chat.id
 
             await asyncio.sleep(0.3)
@@ -92,235 +334,109 @@ async def process_queue():
             await bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=processing_msg.message_id,
-                text=select_language[lang]["request_processed"]
+                text=SELECTED_LANGUAGE[lang]["request_processed"]
             )
 
-            user_message = f"User: {args}"
+            user_message = f"User: {request}"
             memory_storage[chat_id]["history"].append(user_message)
             history = "\n".join(memory_storage[chat_id]["history"])
             prompt = f"{history}\nAssistant:"
 
-            #logging.info(f"\nПолный промпт:\n{prompt}")
+            #logging.info(f"\nFull prompt:\n{prompt}")
 
             try:
-                start = times.time()
                 full_response = await text_generator.generate_text_async(prompt)
                 response = full_response[len(prompt):].strip() if full_response.startswith(prompt) else full_response
 
-                memory_storage[chat_id]["history"].append(f"{response}")
+                memory_storage[chat_id]["history"].append(f"{response}\n")
 
-                cursor_logs.execute("UPDATE requests SET answer_original = ? WHERE time = ?", (response, time))
-                database_logs.commit()
+                cursor.execute("UPDATE request_history SET response_original = ? WHERE timestamp = ?", (response, timestamp))
+                database.commit()
 
-                if lang == "en":
-                    pass
-                else:
-                    await bot.edit_message_text(
+                await bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=processing_msg.message_id,
+                    text=SELECTED_LANGUAGE[lang]["translating_text"]
+                )
+                try:
+                    response = translate_response(response, lang)
+                except:
+                    return await bot.edit_message_text(
                         chat_id=chat_id,
                         message_id=processing_msg.message_id,
-                        text=select_language[lang]["translating_text"]
+                        text=SELECTED_LANGUAGE[lang]["translator_not_working"]
                     )
-                    try:
-                        url = "http://localhost:5000/translate"
-                        data = {
-                            "q": response,
-                            "source": "en",
-                            "target": lang,
-                            "format": "text"
-                        }
-                        get_response = requests.post(url, json=data)
-                        response = get_response.json().get("translatedText")
-                    except:
-                        await bot.edit_message_text(
-                            chat_id=chat_id,
-                            message_id=processing_msg.message_id,
-                            text=select_language[lang]["translator_not_working"]
-                        )
-                        return
-                end = times.time()
-                avg = round(end-start, 2)
-                cursor_logs.execute("UPDATE requests SET answer_translation = ?, action_time = ? WHERE time = ?", (response, avg, time))
-                database_logs.commit()
+                        
+                cursor.execute("UPDATE request_history SET response_translation = ? WHERE timestamp = ?", (response, timestamp))
+                database.commit()
 
                 if len(response) > 4096:
                     chunks = [response[i:i+4096] for i in range(0, len(response), 4096)]
                     for chunk in chunks:
-                        await message.reply(chunk)
+                        await message.reply(chunk, parse_mode=ParseMode.HTML)
                 else:
-                    if lang == "en":
-                        await bot.edit_message_text(
-                            chat_id=chat_id,
-                            message_id=processing_msg.message_id,
-                            text=response,
-                        )
-                    else:
-                        show_original_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                            [InlineKeyboardButton(text=select_language[lang]["show_original_lang"], callback_data="show_original")]
-                        ])
-                        await bot.edit_message_text(
-                            chat_id=chat_id,
-                            message_id=processing_msg.message_id,
-                            text=response,
-                            reply_markup=show_original_keyboard
-                        )
-
-                #logging.info(response)
+                    await bot.edit_message_text(
+                        chat_id=chat_id,
+                        message_id=processing_msg.message_id,
+                        text=response,
+                        reply_markup=SOkeyboard(SELECTED_LANGUAGE, lang),
+                        parse_mode=ParseMode.HTML
+                    )
 
             except Exception as e:
-                await message.reply(f"ERROR: {str(e)}")
+                await message.reply(f"ERROR: {e}")
                 logging.error(f"ERROR: {e}")
 
         finally:
             request_queue.queue.task_done()
 
-async def on_startup():
-    logging.info(' Bot has been started! 🍪')
-    await text_generator.initialize()
-    logging.info(" Model has been sucessfully loaded and is ready to go!")
-    
-    asyncio.create_task(process_queue())
 
-# change_language handler
-@dp.callback_query()
-async def callback_handler(callback_query: types.CallbackQuery):
-    data = callback_query.data
-    user_id = callback_query.from_user.id
-    time = datetime.now().strftime("%d.%m.%Y %H:%M:%S:%f")
-    if data in languages:
-        user_save(user_id, callback_query.from_user.username, time)
-        cursor_logs.execute("UPDATE users_logs SET lang = ? WHERE user_id = ?", (data, user_id))
-        database_logs.commit()
-        await callback_query.message.answer(text=select_language[data]["change_language_succesfully"])
+# /history command
+@dp.message(Command("history"))
+async def history_command(message: Message):
+    user = message.from_user
+    await user_save(user, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
 
-    await callback_query.answer()
-
-
-
-# /start
-@dp.message(Command('start'))
-async def start_command(message: Message):
-    user_id = message.from_user.id
-    time = datetime.now().strftime("%d.%m.%Y %H:%M:%S:%f")
-
-    user_save(user_id, message.from_user.username, time)
-    lang = get_lang(user_id)
-
-    if lang is not None:
-        await message.reply(select_language[lang]["welcome_text"], parse_mode=ParseMode.HTML)
-    elif lang is None:
-        await change_language(message)
-
-# /language      
-@dp.message(Command('language'))
-async def change_language(message: Message):
-    user_id = message.from_user.id
-    time = datetime.now().strftime("%d.%m.%Y %H:%M:%S:%f")
-
-    user_save(user_id, message.from_user.username, time)
-    lang = get_lang(user_id)
-
-    if lang is not None:
-        await message.reply(select_language[lang]["change_language"], reply_markup=language_keyboard)
-    else:
-        await message.reply(select_language["none"], reply_markup=language_keyboard)
-
-# /commands
-@dp.message(Command('commands'))
-async def commands_command(message: Message):
-    user_id = message.from_user.id
-    time = datetime.now().strftime("%d.%m.%Y %H:%M:%S:%f")
-
-    user_save(user_id, message.from_user.username, time)
-    lang = get_lang(user_id)
-
-    if lang is not None:
-        await message.reply(select_language[lang]["commands"], parse_mode=ParseMode.HTML)
-    elif lang is None:
-        await change_language(message)
-
-# /forget
-@dp.message(Command('forget'))
-async def forget_command(message: Message):
-    user_id = message.from_user.id
-    time = datetime.now().strftime("%d.%m.%Y %H:%M:%S:%f")
-
-    user_save(user_id, message.from_user.username, time)
-    lang = get_lang(user_id)
-
+    lang = get_lang(user)
     if lang is None:
-        await change_language(message)
-        return
+        user_command[user.id] = partial(history_command, message)
+        return await change_language(message)
+
+    current_page, response = get_currpage_resp(user)
+    if not response:        
+        return await message.reply(SELECTED_LANGUAGE[lang]["you_have_no_request"], reply_markup=UHkeyboard(SELECTED_LANGUAGE, lang))
+    text = texting(response, current_page, user)
+    keyboard = Hkeyboard(current_page+1, len(response), response[current_page][2], SELECTED_LANGUAGE, lang)
+    await message.reply(text=text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
+
+
+# /forget command
+@dp.message(Command("forget"))
+async def forget_command(message: Message):
+    user = message.from_user
+    await user_save(user, datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
     
-    chat_id = message.chat.id
-    if chat_id in memory_storage:
-        del memory_storage[chat_id]
-    await message.reply(select_language[lang]["forget_clear"])
+    lang = get_lang(user)
+    if lang is None:
+        user_command[user.id] = partial(forget_command, message)
+        return await change_language(message)
 
-# /chat
-@dp.message(Command('chat'))
-async def chat_command(message: Message):
-    user_id = message.from_user.id
-    time = datetime.now().strftime("%d.%m.%Y %H:%M:%S:%f")
-    
-    user_save(user_id, message.from_user.username, time)
-    lang = get_lang(user_id)
+    if user.id in memory_storage:
+        del memory_storage[user.id]
+    await message.reply(SELECTED_LANGUAGE[lang]["forget_clear"])
 
-    if lang is not None:
-        await cleanup_memory()
-        chat_id = message.chat.id
-        if chat_id not in memory_storage:
-            memory_storage[chat_id] = {
-                "history": deque(maxlen=MAX_HISTORY_LENGTH),
-                "timestamp": datetime.now().timestamp()
-            }
 
-        memory_storage[chat_id]["timestamp"] = datetime.now().timestamp()
+async def cleanup_memory():
+    current_time = datetime.now().timestamp()
+    to_delete = [k for k, v in memory_storage.items() if current_time - v["timestamp"] > MEMORY_DURATION]
+    for k in to_delete:
+        del memory_storage[k]
 
-        args = message.text.split('/chat', 1)[1].strip()
-        request = args
-
-        if not args:
-            await message.reply(select_language[lang]["just_chat"])
-            return
-
-        if lang == "en":
-            processing_msg = await message.reply(select_language[lang]["request_processed"])
-        else:
-            try:
-                processing_msg = await message.reply(select_language[lang]["translating_request"])
-                url = "http://localhost:5000/translate"
-                data = {
-                    "q": args,
-                    "source": lang,
-                    "target": "en",
-                    "format": "text"
-                }
-                response = requests.post(url, json=data)
-                args = response.json().get("translatedText")
-            except:
-                await bot.edit_message_text(
-                    chat_id=chat_id,
-                    message_id=processing_msg.message_id,
-                    text=select_language[lang]["translator_not_working"]
-                )
-                return
-
-        cursor_logs.execute("INSERT OR IGNORE INTO requests (user_id, username, request, time) VALUES (?, ?, ?, ?)", 
-                      (user_id, message.from_user.username, request, time))
-        database_logs.commit()
-
-        await request_queue.queue.put((message, args, processing_msg, time, lang))
-
-        position_in_queue = request_queue.queue.qsize()
-        text = f'{select_language[lang]["position_in_queue"] + str(position_in_queue)}.' 
-        await bot.edit_message_text(
-            chat_id=chat_id,
-            message_id=processing_msg.message_id,
-            text=text
-        )
-
-    elif lang is None:
-        await change_language(message)
+async def on_startup():
+    logging.debug("Bot has been started!")
+    await text_generator.initialize()
+    logging.info("Model has been sucessfully loaded and is ready to go!")
+    asyncio.create_task(process_queue())
 
 async def main():
     await on_startup()
@@ -329,4 +445,4 @@ async def main():
 if __name__ == '__main__':
     asyncio.run(main())
 
-database_logs.close()
+database.close()
