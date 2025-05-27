@@ -13,5 +13,3 @@ Prompt for responses: `Explain in 2-3 sentences: why is it that during a thunder
 | [arcee-ai/Virtuoso-Lite](https://huggingface.co/arcee-ai/Virtuoso-Lite) | ~6.3GB VRAM, 19GB on disk | Lightning is visible because it travels at the speed of light, which is extremely fast, whereas sound from thunder travels much slower through the air. This difference in speed causes us to see the lightning almost instantly, but we hear the thunder a few seconds later. | 13.1s |
 
 *All tests were performed on 16GB RAM with RTX 4060 Laptop*
-
-
