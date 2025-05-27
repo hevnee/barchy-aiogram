@@ -22,9 +22,9 @@ barchy is a Telegram bot built with [aiogram](https://github.com/aiogram/aiogram
 
 ## Screenshots
 
-<img src="docs/readme/readme-gif-image.gif" width="400" height="225" alt=""/>
+<img src="docs/readme/readme-gif-image.gif" width="533" height="300" alt=""/>
 
-<img src="docs/readme/readme-image.png" width="400" alt=""/>
+<img src="docs/readme/readme-image.png" width="533" alt=""/>
 
 ## Requirements
 
