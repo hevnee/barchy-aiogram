@@ -4,7 +4,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 language_keyboard = InlineKeyboardMarkup(inline_keyboard=[
     [
         InlineKeyboardButton(text="🇷🇺 Русский", callback_data="ru"),
-        InlineKeyboardButton(text="🇺🇦 Українська", callback_data="ua")
+        InlineKeyboardButton(text="🇺🇦 Українська", callback_data="uk")
     ],
     [
         InlineKeyboardButton(text="🇬🇧 English", callback_data="en"),
