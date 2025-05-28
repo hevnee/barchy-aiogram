@@ -1,5 +1,5 @@
 SUPPORTED_LANGUAGES = (
-    "ru", "ua", "en", "pl",
+    "ru", "uk", "en", "pl",
     "de", "fr", "es", "tr",
 )
 
@@ -57,7 +57,7 @@ SELECTED_LANGUAGE = {
         "forget_clear": "История разговора очищена!",
     },
 
-    "ua": { #ukraine
+    "uk": { #ukraine
         "change_language": "Мова:",
         "change_language_succesfully": "Мова успішно змінена!",
         
