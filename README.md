@@ -2,7 +2,7 @@
 
 <p align="center">
     <img alt="GitHub License" src="https://img.shields.io/github/license/hevnee/barchy-aiogram?style=flat-square">
-    <img alt="Github release version" src="https://img.shields.io/badge/version-v1.2.0-blue?style=flat-square">
+    <img alt="Github release version" src="https://img.shields.io/badge/version-v1.3.0-blue?style=flat-square">
     <img alt="AIOgram version used" src="https://img.shields.io/badge/aiogram-v3.20.0.post0-blue?style=flat-square">
     <img alt="Python version required" src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue?style=flat-square">
 </p>
@@ -22,9 +22,22 @@ barchy is a Telegram bot built with [aiogram](https://github.com/aiogram/aiogram
 
 ## Screenshots
 
-<img src="docs/readme/readme-gif-image.gif" width="800" height="450" alt=""/>
+<img src="docs/readme/commands-readme-image.png" width="533" alt=""/>
 
-<img src="docs/readme/readme-image.png" width="800" alt=""/>
+<img src="docs/readme/readme-gif-image.gif" width="533" alt=""/>
+
+<h3><details>
+<summary>Other Screenshots</summary>
+<ul>
+<img src="docs/readme/history-readme-image.png" width="400" alt=""/>
+
+<img src="docs/readme/dick-readme-image.png" width="400" alt=""/>
+
+<img src="docs/readme/transfer-dick-readme-image.png" width="400" alt=""/>
+
+<img src="docs/readme/giveaway-dick-readme-image.png" width="400" alt=""/>
+</ul>
+</details></h3>
 
 ## Requirements
 
@@ -35,7 +48,7 @@ barchy is a Telegram bot built with [aiogram](https://github.com/aiogram/aiogram
 ## Setup
 
 1. Install all libraries from the `requirements.txt`.
-2. Navigate to `bot/configs/settings.py`
+2. Navigate to `bot/config.py`
     * Replace `TOKEN` with your actual Telegram Bot API token.
     * Change `MODEL_NAME` to a model listed in `MODELS.md` or another model you know.
 3. To use AI with other languages, you need to install [LibreTranslate repository from github](https://github.com/LibreTranslate/LibreTranslate/).
