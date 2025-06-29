@@ -1,11 +1,10 @@
-import torch
-from configs.settings import MODEL_NAME
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, pipeline
-import asyncio
+from config import BotConfigs
+import torch, asyncio
 
 class TextGenerator:
     def __init__(self):
-        self.model_name = MODEL_NAME
+        self.model_name = BotConfigs.MODEL_NAME
         self.generator = None
 
     async def initialize(self):
@@ -27,7 +26,7 @@ class TextGenerator:
             "text-generation",
             model=model,
             tokenizer=tokenizer,
-            max_length=1024,
+            max_new_tokens=768,
             do_sample=True,
             temperature=0.7,
             top_p=0.95,
